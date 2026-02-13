@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purr — Sleep & Calm</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background: #0a0a1a;
+      color: #d4c8b8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+      user-select: none;
+    }
+
+    /* Starry background */
+    .stars {
+      position: fixed;
+      inset: 0;
+      z-index: 0;
+    }
+    .star {
+      position: absolute;
+      width: 2px;
+      height: 2px;
+      background: #fff;
+      border-radius: 50%;
+      animation: twinkle var(--duration) ease-in-out infinite alternate;
+      opacity: 0;
+    }
+    @keyframes twinkle {
+      from { opacity: 0.1; }
+      to { opacity: var(--max-opacity); }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 2rem;
+      padding: 2rem;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      font-weight: 300;
+      letter-spacing: 0.3em;
+      text-transform: uppercase;
+      color: #8a7f9e;
+      text-align: center;
+    }
+
+    /* Cat SVG */
+    .cat-wrapper {
+      position: relative;
+      width: 200px;
+      height: 200px;
+      cursor: pointer;
+      transition: transform 0.3s ease;
+    }
+    .cat-wrapper:hover { transform: scale(1.05); }
+    .cat-wrapper.purring .cat-body { animation: breathe 2.5s ease-in-out infinite; }
+    .cat-wrapper.purring .purr-rings { opacity: 1; }
+
+    .cat-svg { width: 100%; height: 100%; }
+
+    @keyframes breathe {
+      0%, 100% { transform: scaleY(1); }
+      50% { transform: scaleY(1.03); }
+    }
+
+    .purr-rings {
+      position: absolute;
+      inset: -30px;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .purr-ring {
+      position: absolute;
+      inset: 0;
+      border: 1px solid rgba(138, 127, 158, 0.15);
+      border-radius: 50%;
+      animation: purr-expand 2.5s ease-out infinite;
+    }
+    .purr-ring:nth-child(2) { animation-delay: 0.8s; }
+    .purr-ring:nth-child(3) { animation-delay: 1.6s; }
+
+    @keyframes purr-expand {
+      0% { transform: scale(0.8); opacity: 0.6; }
+      100% { transform: scale(1.5); opacity: 0; }
+    }
+
+    /* Controls */
+    .controls {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 300px;
+    }
+
+    .purr-btn {
+      background: linear-gradient(135deg, #2a2040, #3a2860);
+      border: 1px solid rgba(138, 127, 158, 0.3);
+      color: #c4b8d8;
+      font-size: 1.1rem;
+      letter-spacing: 0.15em;
+      padding: 1rem 3rem;
+      border-radius: 50px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      width: 100%;
+    }
+    .purr-btn:hover {
+      background: linear-gradient(135deg, #3a2860, #4a3878);
+      border-color: rgba(138, 127, 158, 0.6);
+      box-shadow: 0 0 30px rgba(100, 80, 160, 0.2);
+    }
+    .purr-btn.active {
+      background: linear-gradient(135deg, #4a3070, #5a4090);
+      border-color: rgba(180, 160, 220, 0.5);
+      box-shadow: 0 0 40px rgba(100, 80, 160, 0.3);
+    }
+
+    .slider-group {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .slider-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.8rem;
+      color: #6a5f7e;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: rgba(138, 127, 158, 0.2);
+      border-radius: 2px;
+      outline: none;
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 18px;
+      height: 18px;
+      background: #6a5090;
+      border-radius: 50%;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    input[type="range"]::-webkit-slider-thumb:hover { background: #8a70b0; }
+    input[type="range"]::-moz-range-thumb {
+      width: 18px;
+      height: 18px;
+      background: #6a5090;
+      border: none;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    /* Timer */
+    .timer-group {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .timer-btn {
+      background: rgba(138, 127, 158, 0.1);
+      border: 1px solid rgba(138, 127, 158, 0.2);
+      color: #6a5f7e;
+      padding: 0.4rem 0.9rem;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      cursor: pointer;
+      letter-spacing: 0.05em;
+      transition: all 0.2s;
+    }
+    .timer-btn:hover, .timer-btn.active {
+      background: rgba(138, 127, 158, 0.2);
+      border-color: rgba(138, 127, 158, 0.4);
+      color: #a89bbe;
+    }
+
+    .timer-display {
+      font-size: 0.85rem;
+      color: #6a5f7e;
+      min-height: 1.2em;
+      text-align: center;
+    }
+
+    .hint {
+      font-size: 0.75rem;
+      color: #4a4560;
+      text-align: center;
+      margin-top: 1rem;
+    }
+
+    /* Fade-in animation */
+    .fade-in {
+      animation: fadeIn 1.5s ease forwards;
+      opacity: 0;
+    }
+    @keyframes fadeIn {
+      to { opacity: 1; }
+    }
+    .fade-in:nth-child(2) { animation-delay: 0.3s; }
+    .fade-in:nth-child(3) { animation-delay: 0.6s; }
+  </style>
+</head>
+<body>
+
+<div class="stars" id="stars"></div>
+
+<div class="container">
+  <h1 class="fade-in">Purr</h1>
+
+  <div class="cat-wrapper fade-in" id="catWrapper" title="Click to toggle purring">
+    <div class="purr-rings">
+      <div class="purr-ring"></div>
+      <div class="purr-ring"></div>
+      <div class="purr-ring"></div>
+    </div>
+    <svg class="cat-svg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <!-- Cat ears -->
+      <path class="cat-body" d="M55 95 L40 45 L75 75 Z" fill="#3a2860" stroke="#6a5090" stroke-width="1.5"/>
+      <path class="cat-body" d="M145 95 L160 45 L125 75 Z" fill="#3a2860" stroke="#6a5090" stroke-width="1.5"/>
+      <!-- Inner ears -->
+      <path d="M57 88 L48 55 L72 78 Z" fill="#4a3070" opacity="0.6"/>
+      <path d="M143 88 L152 55 L128 78 Z" fill="#4a3070" opacity="0.6"/>
+      <!-- Head -->
+      <ellipse class="cat-body" cx="100" cy="105" rx="52" ry="45" fill="#3a2860" stroke="#6a5090" stroke-width="1.5"/>
+      <!-- Eyes (closed - sleeping) -->
+      <path d="M75 100 Q82 95 89 100" stroke="#a89bbe" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <path d="M111 100 Q118 95 125 100" stroke="#a89bbe" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <!-- Nose -->
+      <ellipse cx="100" cy="112" rx="4" ry="3" fill="#6a5090"/>
+      <!-- Mouth -->
+      <path d="M96 115 Q100 119 104 115" stroke="#6a5090" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+      <!-- Whiskers -->
+      <line x1="60" y1="108" x2="30" y2="103" stroke="#6a5090" stroke-width="1" opacity="0.6"/>
+      <line x1="60" y1="112" x2="28" y2="114" stroke="#6a5090" stroke-width="1" opacity="0.6"/>
+      <line x1="60" y1="116" x2="30" y2="125" stroke="#6a5090" stroke-width="1" opacity="0.6"/>
+      <line x1="140" y1="108" x2="170" y2="103" stroke="#6a5090" stroke-width="1" opacity="0.6"/>
+      <line x1="140" y1="112" x2="172" y2="114" stroke="#6a5090" stroke-width="1" opacity="0.6"/>
+      <line x1="140" y1="116" x2="170" y2="125" stroke="#6a5090" stroke-width="1" opacity="0.6"/>
+      <!-- Body -->
+      <ellipse class="cat-body" cx="100" cy="165" rx="45" ry="30" fill="#3a2860" stroke="#6a5090" stroke-width="1.5"/>
+      <!-- Paws -->
+      <ellipse cx="78" cy="185" rx="12" ry="7" fill="#3a2860" stroke="#6a5090" stroke-width="1"/>
+      <ellipse cx="122" cy="185" rx="12" ry="7" fill="#3a2860" stroke="#6a5090" stroke-width="1"/>
+      <!-- Tail -->
+      <path d="M145 165 Q170 155 175 135 Q178 120 168 115" stroke="#6a5090" stroke-width="4" stroke-linecap="round" fill="none"/>
+    </svg>
+  </div>
+
+  <div class="controls fade-in">
+    <button class="purr-btn" id="purrBtn">Start Purring</button>
+
+    <div class="slider-group">
+      <div class="slider-label">
+        <span>Volume</span>
+        <span id="volumeValue">60%</span>
+      </div>
+      <input type="range" id="volumeSlider" min="0" max="100" value="60">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label">
+        <span>Depth</span>
+        <span id="depthValue">Medium</span>
+      </div>
+      <input type="range" id="depthSlider" min="0" max="100" value="50">
+    </div>
+
+    <div class="slider-group">
+      <div class="slider-label"><span>Sleep timer</span></div>
+      <div class="timer-group">
+        <button class="timer-btn" data-minutes="0">Off</button>
+        <button class="timer-btn" data-minutes="10">10m</button>
+        <button class="timer-btn" data-minutes="20">20m</button>
+        <button class="timer-btn" data-minutes="30">30m</button>
+        <button class="timer-btn" data-minutes="60">1h</button>
+      </div>
+      <div class="timer-display" id="timerDisplay"></div>
+    </div>
+  </div>
+
+  <p class="hint fade-in">Tap the cat or press Space to start</p>
+</div>
+
+<script>
+(() => {
+  // --- Starry Background ---
+  const starsEl = document.getElementById('stars');
+  for (let i = 0; i < 80; i++) {
+    const star = document.createElement('div');
+    star.className = 'star';
+    star.style.left = Math.random() * 100 + '%';
+    star.style.top = Math.random() * 100 + '%';
+    star.style.setProperty('--duration', (2 + Math.random() * 4) + 's');
+    star.style.setProperty('--max-opacity', (0.3 + Math.random() * 0.7).toFixed(2));
+    star.style.animationDelay = (Math.random() * 4) + 's';
+    starsEl.appendChild(star);
+  }
+
+  // --- Audio Engine (Web Audio API - no external files needed) ---
+  let audioCtx = null;
+  let masterGain = null;
+  let purrNodes = [];
+  let isPurring = false;
+
+  function initAudio() {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    masterGain = audioCtx.createGain();
+    masterGain.gain.value = 0;
+    masterGain.connect(audioCtx.destination);
+  }
+
+  function createPurr() {
+    if (!audioCtx) initAudio();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+
+    const depth = depthSlider.value / 100;
+    const baseFreq = 22 + depth * 10; // 22-32 Hz range (real cat purr range)
+
+    // Layer 1: Low rumble (fundamental purr frequency)
+    const osc1 = audioCtx.createOscillator();
+    const gain1 = audioCtx.createGain();
+    osc1.type = 'sawtooth';
+    osc1.frequency.value = baseFreq;
+    gain1.gain.value = 0.3;
+    osc1.connect(gain1);
+
+    // Layer 2: Harmonic
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = 'sawtooth';
+    osc2.frequency.value = baseFreq * 2;
+    gain2.gain.value = 0.15;
+    osc2.connect(gain2);
+
+    // Layer 3: Higher harmonic for texture
+    const osc3 = audioCtx.createOscillator();
+    const gain3 = audioCtx.createGain();
+    osc3.type = 'sine';
+    osc3.frequency.value = baseFreq * 3;
+    gain3.gain.value = 0.08;
+    osc3.connect(gain3);
+
+    // Layer 4: Noise for texture (filtered)
+    const bufferSize = audioCtx.sampleRate * 2;
+    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+    const data = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) {
+      data[i] = (Math.random() * 2 - 1) * 0.5;
+    }
+    const noise = audioCtx.createBufferSource();
+    noise.buffer = noiseBuffer;
+    noise.loop = true;
+
+    const noiseFilter = audioCtx.createBiquadFilter();
+    noiseFilter.type = 'bandpass';
+    noiseFilter.frequency.value = 80 + depth * 60;
+    noiseFilter.Q.value = 2;
+
+    const noiseGain = audioCtx.createGain();
+    noiseGain.gain.value = 0.12;
+    noise.connect(noiseFilter);
+    noiseFilter.connect(noiseGain);
+
+    // Amplitude modulation for the rhythmic "in-out" breathing pattern
+    const lfo = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    lfo.type = 'sine';
+    lfo.frequency.value = 1.2; // ~1.2 Hz breathing cycle
+    lfoGain.gain.value = 0.4;
+    lfo.connect(lfoGain);
+
+    const modGain = audioCtx.createGain();
+    modGain.gain.value = 0.6;
+    lfoGain.connect(modGain.gain);
+
+    // Connect all layers through modulation
+    gain1.connect(modGain);
+    gain2.connect(modGain);
+    gain3.connect(modGain);
+    noiseGain.connect(modGain);
+    modGain.connect(masterGain);
+
+    // Start everything
+    osc1.start();
+    osc2.start();
+    osc3.start();
+    noise.start();
+    lfo.start();
+
+    purrNodes = [
+      { node: osc1, type: 'osc' },
+      { node: osc2, type: 'osc' },
+      { node: osc3, type: 'osc' },
+      { node: noise, type: 'buffer' },
+      { node: lfo, type: 'osc' },
+      { node: gain1 }, { node: gain2 }, { node: gain3 },
+      { node: noiseGain }, { node: noiseFilter },
+      { node: lfoGain }, { node: modGain }
+    ];
+
+    // Fade in
+    const vol = volumeSlider.value / 100;
+    masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 1.5);
+  }
+
+  function stopPurr() {
+    if (!audioCtx || !masterGain) return;
+    masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+    masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
+    masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+
+    setTimeout(() => {
+      purrNodes.forEach(n => {
+        try { if (n.type === 'osc' || n.type === 'buffer') n.node.stop(); } catch(e) {}
+        try { n.node.disconnect(); } catch(e) {}
+      });
+      purrNodes = [];
+    }, 1800);
+  }
+
+  function togglePurr() {
+    isPurring = !isPurring;
+    if (isPurring) {
+      createPurr();
+      purrBtn.textContent = 'Stop Purring';
+      purrBtn.classList.add('active');
+      catWrapper.classList.add('purring');
+    } else {
+      stopPurr();
+      purrBtn.textContent = 'Start Purring';
+      purrBtn.classList.remove('active');
+      catWrapper.classList.remove('purring');
+      clearTimer();
+    }
+  }
+
+  // --- DOM ---
+  const purrBtn = document.getElementById('purrBtn');
+  const catWrapper = document.getElementById('catWrapper');
+  const volumeSlider = document.getElementById('volumeSlider');
+  const depthSlider = document.getElementById('depthSlider');
+  const volumeValue = document.getElementById('volumeValue');
+  const depthValue = document.getElementById('depthValue');
+  const timerDisplay = document.getElementById('timerDisplay');
+
+  purrBtn.addEventListener('click', togglePurr);
+  catWrapper.addEventListener('click', togglePurr);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' && e.target === document.body) {
+      e.preventDefault();
+      togglePurr();
+    }
+  });
+
+  // Volume
+  volumeSlider.addEventListener('input', () => {
+    const vol = volumeSlider.value / 100;
+    volumeValue.textContent = volumeSlider.value + '%';
+    if (isPurring && masterGain) {
+      masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
+      masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
+      masterGain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 0.1);
+    }
+  });
+
+  // Depth — restart purr with new frequency if currently playing
+  depthSlider.addEventListener('input', () => {
+    const d = depthSlider.value;
+    depthValue.textContent = d < 33 ? 'Light' : d < 66 ? 'Medium' : 'Deep';
+    if (isPurring) {
+      stopPurr();
+      setTimeout(createPurr, 200);
+    }
+  });
+
+  // --- Sleep Timer ---
+  let timerInterval = null;
+  let timerRemaining = 0;
+
+  function clearTimer() {
+    clearInterval(timerInterval);
+    timerInterval = null;
+    timerRemaining = 0;
+    timerDisplay.textContent = '';
+    document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+    document.querySelector('.timer-btn[data-minutes="0"]').classList.add('active');
+  }
+
+  function startTimer(minutes) {
+    clearInterval(timerInterval);
+    if (minutes === 0) { clearTimer(); return; }
+    timerRemaining = minutes * 60;
+    updateTimerDisplay();
+    timerInterval = setInterval(() => {
+      timerRemaining--;
+      updateTimerDisplay();
+      if (timerRemaining <= 0) {
+        if (isPurring) togglePurr();
+        clearTimer();
+      }
+    }, 1000);
+  }
+
+  function updateTimerDisplay() {
+    const m = Math.floor(timerRemaining / 60);
+    const s = timerRemaining % 60;
+    timerDisplay.textContent = `${m}:${s.toString().padStart(2, '0')} remaining`;
+  }
+
+  document.querySelectorAll('.timer-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.timer-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const mins = parseInt(btn.dataset.minutes);
+      startTimer(mins);
+      if (mins > 0 && !isPurring) togglePurr();
+    });
+  });
+
+  // Default timer state
+  document.querySelector('.timer-btn[data-minutes="0"]').classList.add('active');
+})();
+</script>
+</body>
+</html>
