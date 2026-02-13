@@ -322,17 +322,77 @@
     starsEl.appendChild(star);
   }
 
-  // --- Audio Engine (Web Audio API - no external files needed) ---
+  // --- Audio Engine (Web Audio API - natural purr synthesis) ---
+  // A real cat purr is produced by the laryngeal muscles vibrating at ~25 Hz,
+  // modulating airflow. It sounds like rumbling filtered noise, NOT a clean tone.
+  // We model this with: shaped noise -> multiple resonant bandpass filters ->
+  // amplitude-modulated by an asymmetric inhale/exhale breathing envelope
+  // with subtle random drift for organic feel.
+
   let audioCtx = null;
   let masterGain = null;
   let purrNodes = [];
   let isPurring = false;
+  let driftInterval = null;
 
   function initAudio() {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
     masterGain = audioCtx.createGain();
     masterGain.gain.value = 0;
-    masterGain.connect(audioCtx.destination);
+
+    // Final soft compression to glue the sound together
+    const compressor = audioCtx.createDynamicsCompressor();
+    compressor.threshold.value = -20;
+    compressor.knee.value = 20;
+    compressor.ratio.value = 4;
+    compressor.attack.value = 0.05;
+    compressor.release.value = 0.25;
+    masterGain.connect(compressor);
+    compressor.connect(audioCtx.destination);
+  }
+
+  // Create brown noise (deeper, more natural than white noise)
+  function createBrownNoise(length) {
+    const buffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    let lastOut = 0;
+    for (let i = 0; i < length; i++) {
+      const white = Math.random() * 2 - 1;
+      data[i] = (lastOut + (0.02 * white)) / 1.02;
+      lastOut = data[i];
+      data[i] *= 3.5; // compensate for volume loss
+    }
+    return buffer;
+  }
+
+  // Create the asymmetric breathing envelope as an audio-rate buffer
+  // Cats purr on both inhale and exhale - the exhale is slightly louder/longer
+  function createBreathingBuffer(cycleDuration) {
+    const length = Math.floor(audioCtx.sampleRate * cycleDuration);
+    const buffer = audioCtx.createBuffer(1, length, audioCtx.sampleRate);
+    const data = buffer.getChannelData(0);
+    const exhaleRatio = 0.55; // exhale takes 55% of the cycle
+    const exhaleSamples = Math.floor(length * exhaleRatio);
+    const inhaleSamples = length - exhaleSamples;
+
+    for (let i = 0; i < length; i++) {
+      let env;
+      if (i < exhaleSamples) {
+        // Exhale phase: quick rise, gentle fall
+        const t = i / exhaleSamples;
+        env = Math.sin(t * Math.PI) ** 0.7;
+        env = 0.6 + 0.4 * env; // keep minimum at 0.6 so it never fully drops out
+      } else {
+        // Inhale phase: softer, slightly different shape
+        const t = (i - exhaleSamples) / inhaleSamples;
+        env = Math.sin(t * Math.PI) ** 0.9;
+        env = 0.5 + 0.35 * env; // inhale is a bit quieter
+      }
+      // Add micro-variation for organic feel
+      env += (Math.random() - 0.5) * 0.03;
+      data[i] = Math.max(0, env);
+    }
+    return buffer;
   }
 
   function createPurr() {
@@ -340,102 +400,162 @@
     if (audioCtx.state === 'suspended') audioCtx.resume();
 
     const depth = depthSlider.value / 100;
-    const baseFreq = 22 + depth * 10; // 22-32 Hz range (real cat purr range)
+    const baseFreq = 23 + depth * 9; // 23-32 Hz (real cat purr range)
+    const breathRate = 0.85 + depth * 0.3; // breathing cycle speed
 
-    // Layer 1: Low rumble (fundamental purr frequency)
-    const osc1 = audioCtx.createOscillator();
+    // --- LAYER 1: Primary rumble (brown noise through resonant filters) ---
+    const noiseLen = audioCtx.sampleRate * 4;
+    const noise1 = audioCtx.createBufferSource();
+    noise1.buffer = createBrownNoise(noiseLen);
+    noise1.loop = true;
+
+    // Chain of bandpass filters to create resonant "vocal tract" of the cat
+    const bp1 = audioCtx.createBiquadFilter();
+    bp1.type = 'bandpass';
+    bp1.frequency.value = baseFreq;
+    bp1.Q.value = 8; // narrow resonance at fundamental
+
+    const bp2 = audioCtx.createBiquadFilter();
+    bp2.type = 'bandpass';
+    bp2.frequency.value = baseFreq * 2.02; // slightly detuned harmonic
+    bp2.Q.value = 6;
+
+    const bp3 = audioCtx.createBiquadFilter();
+    bp3.type = 'bandpass';
+    bp3.frequency.value = baseFreq * 3.05;
+    bp3.Q.value = 4;
+
     const gain1 = audioCtx.createGain();
-    osc1.type = 'sawtooth';
-    osc1.frequency.value = baseFreq;
-    gain1.gain.value = 0.3;
-    osc1.connect(gain1);
-
-    // Layer 2: Harmonic
-    const osc2 = audioCtx.createOscillator();
+    gain1.gain.value = 0.45;
     const gain2 = audioCtx.createGain();
-    osc2.type = 'sawtooth';
-    osc2.frequency.value = baseFreq * 2;
-    gain2.gain.value = 0.15;
-    osc2.connect(gain2);
-
-    // Layer 3: Higher harmonic for texture
-    const osc3 = audioCtx.createOscillator();
+    gain2.gain.value = 0.25;
     const gain3 = audioCtx.createGain();
-    osc3.type = 'sine';
-    osc3.frequency.value = baseFreq * 3;
-    gain3.gain.value = 0.08;
-    osc3.connect(gain3);
+    gain3.gain.value = 0.12;
 
-    // Layer 4: Noise for texture (filtered)
-    const bufferSize = audioCtx.sampleRate * 2;
-    const noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-    const data = noiseBuffer.getChannelData(0);
-    for (let i = 0; i < bufferSize; i++) {
-      data[i] = (Math.random() * 2 - 1) * 0.5;
-    }
-    const noise = audioCtx.createBufferSource();
-    noise.buffer = noiseBuffer;
-    noise.loop = true;
+    noise1.connect(bp1); bp1.connect(gain1);
+    noise1.connect(bp2); bp2.connect(gain2);
+    noise1.connect(bp3); bp3.connect(gain3);
 
-    const noiseFilter = audioCtx.createBiquadFilter();
-    noiseFilter.type = 'bandpass';
-    noiseFilter.frequency.value = 80 + depth * 60;
-    noiseFilter.Q.value = 2;
+    // --- LAYER 2: Warm body resonance (broader filtered noise) ---
+    const noise2 = audioCtx.createBufferSource();
+    noise2.buffer = createBrownNoise(noiseLen);
+    noise2.loop = true;
 
-    const noiseGain = audioCtx.createGain();
-    noiseGain.gain.value = 0.12;
-    noise.connect(noiseFilter);
-    noiseFilter.connect(noiseGain);
+    const bodyFilter = audioCtx.createBiquadFilter();
+    bodyFilter.type = 'bandpass';
+    bodyFilter.frequency.value = 60 + depth * 40;
+    bodyFilter.Q.value = 0.8; // very wide - warm rumble
 
-    // Amplitude modulation for the rhythmic "in-out" breathing pattern
-    const lfo = audioCtx.createOscillator();
-    const lfoGain = audioCtx.createGain();
-    lfo.type = 'sine';
-    lfo.frequency.value = 1.2; // ~1.2 Hz breathing cycle
-    lfoGain.gain.value = 0.4;
-    lfo.connect(lfoGain);
+    const bodyGain = audioCtx.createGain();
+    bodyGain.gain.value = 0.2;
+    noise2.connect(bodyFilter);
+    bodyFilter.connect(bodyGain);
 
-    const modGain = audioCtx.createGain();
-    modGain.gain.value = 0.6;
-    lfoGain.connect(modGain.gain);
+    // --- LAYER 3: Soft high-frequency air/breath texture ---
+    const noise3 = audioCtx.createBufferSource();
+    noise3.buffer = createBrownNoise(noiseLen);
+    noise3.loop = true;
 
-    // Connect all layers through modulation
-    gain1.connect(modGain);
-    gain2.connect(modGain);
-    gain3.connect(modGain);
-    noiseGain.connect(modGain);
-    modGain.connect(masterGain);
+    const airFilter = audioCtx.createBiquadFilter();
+    airFilter.type = 'bandpass';
+    airFilter.frequency.value = 200 + depth * 100;
+    airFilter.Q.value = 0.5;
 
-    // Start everything
-    osc1.start();
-    osc2.start();
-    osc3.start();
-    noise.start();
-    lfo.start();
+    const airGain = audioCtx.createGain();
+    airGain.gain.value = 0.06;
+    noise3.connect(airFilter);
+    airFilter.connect(airGain);
+
+    // --- LAYER 4: Sub-harmonic throb (very low, felt more than heard) ---
+    const noise4 = audioCtx.createBufferSource();
+    noise4.buffer = createBrownNoise(noiseLen);
+    noise4.loop = true;
+
+    const subFilter = audioCtx.createBiquadFilter();
+    subFilter.type = 'lowpass';
+    subFilter.frequency.value = baseFreq * 0.8;
+    subFilter.Q.value = 3;
+
+    const subGain = audioCtx.createGain();
+    subGain.gain.value = 0.15 + depth * 0.1;
+    noise4.connect(subFilter);
+    subFilter.connect(subGain);
+
+    // --- Breathing envelope (amplitude modulation via buffer loop) ---
+    const cycleDuration = 1 / breathRate;
+    const envSource = audioCtx.createBufferSource();
+    envSource.buffer = createBreathingBuffer(cycleDuration);
+    envSource.loop = true;
+
+    // The envelope modulates a gain node
+    const envGain = audioCtx.createGain();
+    envGain.gain.value = 0; // will be driven by the envelope signal
+    envSource.connect(envGain.gain);
+
+    // Mix all layers into the envelope-modulated gain
+    gain1.connect(envGain);
+    gain2.connect(envGain);
+    gain3.connect(envGain);
+    bodyGain.connect(envGain);
+    airGain.connect(envGain);
+    subGain.connect(envGain);
+
+    // Soft low-pass on the final mix to remove any harsh edges
+    const finalLP = audioCtx.createBiquadFilter();
+    finalLP.type = 'lowpass';
+    finalLP.frequency.value = 350 + depth * 150;
+    finalLP.Q.value = 0.5;
+
+    envGain.connect(finalLP);
+    finalLP.connect(masterGain);
+
+    // Start all sources
+    noise1.start();
+    noise2.start();
+    noise3.start();
+    noise4.start();
+    envSource.start();
 
     purrNodes = [
-      { node: osc1, type: 'osc' },
-      { node: osc2, type: 'osc' },
-      { node: osc3, type: 'osc' },
-      { node: noise, type: 'buffer' },
-      { node: lfo, type: 'osc' },
+      { node: noise1, type: 'buffer' },
+      { node: noise2, type: 'buffer' },
+      { node: noise3, type: 'buffer' },
+      { node: noise4, type: 'buffer' },
+      { node: envSource, type: 'buffer' },
+      { node: bp1 }, { node: bp2 }, { node: bp3 },
       { node: gain1 }, { node: gain2 }, { node: gain3 },
-      { node: noiseGain }, { node: noiseFilter },
-      { node: lfoGain }, { node: modGain }
+      { node: bodyFilter }, { node: bodyGain },
+      { node: airFilter }, { node: airGain },
+      { node: subFilter }, { node: subGain },
+      { node: envGain }, { node: finalLP }
     ];
+
+    // Subtle random drift on filter frequencies for organic feel
+    driftInterval = setInterval(() => {
+      if (!audioCtx) return;
+      const t = audioCtx.currentTime;
+      const drift = () => 1 + (Math.random() - 0.5) * 0.04; // +/- 2%
+      bp1.frequency.setTargetAtTime(baseFreq * drift(), t, 0.5);
+      bp2.frequency.setTargetAtTime(baseFreq * 2.02 * drift(), t, 0.5);
+      bp3.frequency.setTargetAtTime(baseFreq * 3.05 * drift(), t, 0.5);
+      bodyFilter.frequency.setTargetAtTime((60 + depth * 40) * drift(), t, 0.5);
+    }, 800);
 
     // Fade in
     const vol = volumeSlider.value / 100;
     masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
     masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 1.5);
+    masterGain.gain.linearRampToValueAtTime(vol, audioCtx.currentTime + 2);
   }
 
   function stopPurr() {
     if (!audioCtx || !masterGain) return;
+    clearInterval(driftInterval);
+    driftInterval = null;
+
     masterGain.gain.cancelScheduledValues(audioCtx.currentTime);
     masterGain.gain.setValueAtTime(masterGain.gain.value, audioCtx.currentTime);
-    masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 1.5);
+    masterGain.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 2);
 
     setTimeout(() => {
       purrNodes.forEach(n => {
@@ -443,7 +563,7 @@
         try { n.node.disconnect(); } catch(e) {}
       });
       purrNodes = [];
-    }, 1800);
+    }, 2500);
   }
 
   function togglePurr() {
